@@ -1,0 +1,1 @@
+cmd_/home/rob/personal/ldd/ch2/hello.ko := ld -r -m elf_x86_64  -z max-page-size=0x200000  --build-id  -T ./scripts/module-common.lds -o /home/rob/personal/ldd/ch2/hello.ko /home/rob/personal/ldd/ch2/hello.o /home/rob/personal/ldd/ch2/hello.mod.o;  true

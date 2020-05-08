@@ -1,0 +1,72 @@
+https://stackoverflow.com/questions/33676829/vim-configuration-for-linux-kernel-development
+
+Where dir variable can have one of next values:
+
+.: if you are gonna work only in kernel source code directory; in this case those commands should be run from root directory of kernel source code
+absolute path to your kernel source code directory: if you are gonna develop some out-of-tree kernel module; in this case script can be run from anywhere
+
+arm:
+find    $dir                                          \
+        -path "$dir/arch*"               -prune -o    \
+        -path "$dir/tmp*"                -prune -o    \
+        -path "$dir/Documentation*"      -prune -o    \
+        -path "$dir/scripts*"            -prune -o    \
+        -path "$dir/tools*"              -prune -o    \
+        -path "$dir/include/config*"     -prune -o    \
+        -path "$dir/usr/include*"        -prune -o    \
+        -type f                                       \
+        -not -name '*.mod.c'                          \
+        -name "*.[chsS]" -print > cscope.files
+find    $dir/arch/arm                                 \
+        -path "$dir/arch/arm/mach-*"     -prune -o    \
+        -path "$dir/arch/arm/plat-*"     -prune -o    \
+        -path "$dir/arch/arm/configs"    -prune -o    \
+        -path "$dir/arch/arm/kvm"        -prune -o    \
+        -path "$dir/arch/arm/xen"        -prune -o    \
+        -type f                                       \
+        -not -name '*.mod.c'                          \
+        -name "*.[chsS]" -print >> cscope.files
+find    $dir/arch/arm/mach-omap2/                     \
+        $dir/arch/arm/plat-omap/                      \
+        -type f                                       \
+        -not -name '*.mod.c'                          \
+        -name "*.[chsS]" -print >> cscope.files
+
+
+
+For x86 architecture (arch/x86) you can use something like this:
+
+find    $dir                                          \
+        -path "$dir/arch*"               -prune -o    \
+        -path "$dir/tmp*"                -prune -o    \
+        -path "$dir/Documentation*"      -prune -o    \
+        -path "$dir/scripts*"            -prune -o    \
+        -path "$dir/tools*"              -prune -o    \
+        -path "$dir/include/config*"     -prune -o    \
+        -path "$dir/usr/include*"        -prune -o    \
+        -type f                                       \
+        -not -name '*.mod.c'                          \
+        -name "*.[chsS]" -print > cscope.files
+find    $dir/arch/x86                                 \
+        -path "$dir/arch/x86/configs"    -prune -o    \
+        -path "$dir/arch/x86/kvm"        -prune -o    \
+        -path "$dir/arch/x86/lguest"     -prune -o    \
+        -path "$dir/arch/x86/xen"        -prune -o    \
+        -type f                                       \
+        -not -name '*.mod.c'                          \
+        -name "*.[chsS]" -print >> cscope.files
+
+
+that makes cscope.files
+in directory with cscope.files, also run 
+find . -not -name '*.mod.c' -name "*.[chsS]" >> cscope.files
+
+then:
+
+cscope -b -q -k
+
+then:
+
+ctags -L cscope.files
+
+should be done!
