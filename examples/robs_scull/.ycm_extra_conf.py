@@ -7,11 +7,11 @@ import re
 
 C_BASE_FLAGS = [
         '-DUSE_CLANGD_COMPLETER',
-        # '-Wall',
-        # '-Wextra',
-        # '-Werror',
-        # '-Wno-long-long',
-        # '-Wno-variadic-macros',
+        '-Wall',
+        '-Wextra',
+        '-Werror',
+        '-Wno-long-long',
+        '-Wno-variadic-macros',
         '-fexceptions',
         '-ferror-limit=10000',
         '-DNDEBUG',
