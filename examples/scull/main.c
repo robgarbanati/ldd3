@@ -241,6 +241,8 @@ int scull_open(struct inode *inode, struct file *filp)
 {
 	struct scull_dev *dev; /* device information */
 
+        printk(KERN_INFO "invoking scull_open\n");
+
 	dev = container_of(inode->i_cdev, struct scull_dev, cdev);
 	filp->private_data = dev; /* for other methods */
 
@@ -300,6 +302,8 @@ ssize_t scull_read(struct file *filp, char __user *buf, size_t count,
 	int itemsize = quantum * qset; /* how many bytes in the listitem */
 	int item, s_pos, q_pos, rest;
 	ssize_t retval = 0;
+
+        printk(KERN_INFO "invoking scull_read\n");
 
 	if (mutex_lock_interruptible(&dev->lock))
 		return -ERESTARTSYS;
@@ -573,6 +577,8 @@ void scull_cleanup_module(void)
 	int i;
 	dev_t devno = MKDEV(scull_major, scull_minor);
 
+        printk(KERN_INFO "goodbye world from original scull\n");
+
 	/* Get rid of our char dev entries */
 	if (scull_devices) {
 		for (i = 0; i < scull_nr_devs; i++) {
@@ -617,6 +623,8 @@ int scull_init_module(void)
 {
 	int result, i;
 	dev_t dev = 0;
+
+        printk(KERN_INFO "hello world from original scull\n");
 
 /*
  * Get a range of minor numbers to work with, asking for a dynamic

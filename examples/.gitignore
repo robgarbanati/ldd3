@@ -13,6 +13,8 @@ core
 *.mod.c
 Module.symvers
 modules.order
+cscope.*
+tags
 
 # misc-progs
 nbtest 
