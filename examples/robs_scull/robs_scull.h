@@ -7,7 +7,7 @@
 //====================================================================================================//
 #define SCULL_NR_DEVS 1
 #define QUANTUM_SIZE 4000
-#define QSET_ARRAY_SIZE    1000
+#define LENGTH_OF_ARRAY_OF_QUANTUMS    1000
 
 
 // IOCTL Defs:
@@ -38,13 +38,13 @@ typedef struct _scull_qset_t {
 } scull_qset_t;
 
 typedef struct _scull_dev_t {
-    scull_qset_t *qset_list_head;         // Pointer to first quantum set.
-    int quantum_size;                // The current quantum size.
-    int qset_array_size;                   // The current array size. TODO this might be misnamed. see scull_trim
-    unsigned long tail;         // Amount of data stored here.
-    unsigned int access_key;    // Used by sculluid and scullpriv TODO how?
-    struct mutex lock;          // mutex, duh
-    struct cdev cdev;           // Char device structure. TODO what is that?
+    scull_qset_t *qset_list_head;       // Pointer to first quantum set.
+    int quantum_size;                   // The current quantum size.
+    int length_of_array_of_quantums;    // The current array size. TODO this might be misnamed. see scull_trim
+    unsigned long tail;                 // Amount of data stored here.
+    unsigned int access_key;            // Used by sculluid and scullpriv TODO how?
+    struct mutex lock;                  // mutex, duh
+    struct cdev cdev;                   // Char device structure. TODO what is that?
 } scull_dev_t;
 
 

@@ -26,7 +26,7 @@ int scull_major =   0;
 int scull_minor =   0;
 int scull_nr_devs = SCULL_NR_DEVS; // number of bare scull devices.
 int quantum_size = QUANTUM_SIZE;
-int qset_array_size = QSET_ARRAY_SIZE;
+int length_of_array_of_quantums = LENGTH_OF_ARRAY_OF_QUANTUMS;
 scull_dev_t *scull_devices; // allocated in scull_init_module.
 
 struct file_operations scull_fops = {
@@ -60,7 +60,7 @@ static void scull_setup_cdev(scull_dev_t *scull_device, int index) {
 // Free all memory in scull device.
 static int scull_trim(scull_dev_t *scull_device) {
     scull_qset_t *next, *qset_ptr;
-    int qset_array_size = scull_device->qset_array_size;
+    int length_of_array_of_quantums = scull_device->length_of_array_of_quantums;
     int i;
     
     // from first qset in the array to the last...
@@ -68,7 +68,7 @@ static int scull_trim(scull_dev_t *scull_device) {
         // is quantum_array not null?
         if(qset_ptr->quantum_array) {
             // free all data in current quantum_array.
-            for(i=0; i<qset_array_size; i++) { // TODO this feels like the wrong end condition.
+            for(i=0; i<length_of_array_of_quantums; i++) {
                 kfree(qset_ptr->quantum_array[i]);
             }
             // free quantum array itself.
@@ -82,7 +82,7 @@ static int scull_trim(scull_dev_t *scull_device) {
 
     scull_device->tail = 0;
     scull_device->quantum_size = quantum_size;
-    scull_device->qset_array_size = qset_array_size;
+    scull_device->length_of_array_of_quantums = length_of_array_of_quantums;
     scull_device->qset_list_head = NULL;
     return 0;
 }
@@ -169,7 +169,6 @@ int scull_release(struct inode *inode, struct file *filp)
 
 long scull_ioctl(struct file *filp, unsigned int cmd, unsigned long arg) {
     int err = 0, retval = 0;
-    int tmp; 
 
     // extract the type and number bitfields, and don't decode wrong cmds: return ENOTTY
     // (inapproprate ioctl) before access_ok()
@@ -189,7 +188,7 @@ long scull_ioctl(struct file *filp, unsigned int cmd, unsigned long arg) {
     switch(cmd) {
         case SCULL_IOCRESET:
             quantum_size = QUANTUM_SIZE;
-            qset_array_size = QSET_ARRAY_SIZE;
+            length_of_array_of_quantums = length_of_array_of_quantums;
             break;
         case SCULL_IOCQQUANTUM: /* Query: return it (it's positive) */
             return quantum_size;
@@ -217,7 +216,7 @@ loff_t scull_llseek(struct file *filp, loff_t off, int whence) {
             newpos = scull_device->tail + off;
             break;
         default: // shouldn't happen
-            CHECK(0, -EINVAL, "illegal llseek whence: %lld.", whence);
+            CHECK(0, -EINVAL, "illegal llseek whence: %d.", whence);
             break;
     }
     CHECK(newpos >= 0, -EINVAL, "position seeked < 0. pos = %lld.", newpos);
@@ -233,8 +232,8 @@ ssize_t scull_read(struct file *filp, char __user *user_ptr, size_t count, loff_
     scull_dev_t *scull_device = filp->private_data;
     scull_qset_t *qset_ptr;
     int quantum_size = scull_device->quantum_size;
-    int qset_array_size = scull_device->qset_array_size;
-    int qset_size = quantum_size * qset_array_size; // How many bytes in each qset.
+    int length_of_array_of_quantums = scull_device->length_of_array_of_quantums;
+    int qset_size = quantum_size * length_of_array_of_quantums; // How many bytes in each qset.
     int qset_list_index, quantum_index, byte_pos_in_quantum, byte_pos_in_qset;
     ssize_t retval=0;
 
@@ -286,8 +285,8 @@ ssize_t scull_write(struct file *filp, const char __user *user_ptr, size_t count
     scull_dev_t *scull_device = filp->private_data;
     scull_qset_t *qset_ptr;
     int quantum_size = scull_device->quantum_size;
-    int qset_array_size = scull_device->qset_array_size;
-    int qset_size = quantum_size * qset_array_size;
+    int length_of_array_of_quantums = scull_device->length_of_array_of_quantums;
+    int qset_size = quantum_size * length_of_array_of_quantums;
     int qset_list_index, quantum_index, byte_pos_in_qset, byte_pos_in_quantum;
     ssize_t retval=0;
 
@@ -307,8 +306,9 @@ ssize_t scull_write(struct file *filp, const char __user *user_ptr, size_t count
     // is quantum_array not allocated in current qset?
     if(!qset_ptr->quantum_array) {
         // allocate it.
-        qset_ptr->quantum_array = kmalloc(quantum_size, GFP_KERNEL);
+        qset_ptr->quantum_array = kmalloc(length_of_array_of_quantums*sizeof(char *), GFP_KERNEL);
         CHECK(qset_ptr->quantum_array, 0, "kmalloc failed.");
+        memset(qset_ptr->quantum_array, 0, length_of_array_of_quantums * sizeof(char *));
     }
 
     // Is quantum at quantum_index not allocated?
@@ -327,7 +327,7 @@ ssize_t scull_write(struct file *filp, const char __user *user_ptr, size_t count
     CHECK(copy_from_user(qset_ptr->quantum_array[quantum_index]+byte_pos_in_quantum, user_ptr, count)==0, -EFAULT, "copy_from_user failed.");
 
     // Update file position.
-    f_pos += count;
+    *f_pos += count;
     // Update "size" of the file.
     if(scull_device->tail < *f_pos) {
         scull_device->tail = *f_pos;
@@ -392,7 +392,7 @@ int scull_init_module(void) {
     // Initialize each device.
     for (i=0; i<scull_nr_devs; i++) {
         scull_devices[i].quantum_size = quantum_size;
-        scull_devices[i].qset_array_size = qset_array_size;
+        scull_devices[i].length_of_array_of_quantums = length_of_array_of_quantums;
         mutex_init(&scull_devices[i].lock);
         scull_setup_cdev(&scull_devices[i], i);
     }

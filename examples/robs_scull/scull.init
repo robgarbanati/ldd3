@@ -101,6 +101,9 @@ function load_device () {
 
     if $INSMOD $devpath $OPTIONS; then
 	MAJOR=`awk "\\$2==\"$DEVICE\" {print \\$1}" /proc/devices`
+        echo "DEVICE = $DEVICE"
+        echo "2 = $2"
+        echo "major = $MAJOR"
 	remove_files $FILES
 	create_files $FILES
 	device_specific_post_load
