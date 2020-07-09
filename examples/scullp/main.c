@@ -235,6 +235,7 @@ ssize_t scullp_write (struct file *filp, const char __user *buf, size_t count,
 			goto nomem;
 		memset(dptr->data, 0, qset * sizeof(char *));
 	}
+
 	/* Here's the allocation of a single quantum */
 	if (!dptr->data[s_pos]) {
 		dptr->data[s_pos] =

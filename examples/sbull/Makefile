@@ -15,7 +15,9 @@ EXTRA_CFLAGS += -I..
 ifneq ($(KERNELRELEASE),)
 # call from kernel build system
 
-obj-m	:= sbull.o
+#obj-m	:= robs_sbull.o
+#obj-m	:= sbull.o
+obj-m	:= sbd.o
 
 else
 
