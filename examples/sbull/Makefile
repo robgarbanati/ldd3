@@ -1,43 +1,25 @@
-# Comment/uncomment the following line to disable/enable debugging
-#DEBUG = y
+BINARY     := test_blockdev
+KERNEL      := /lib/modules/$(shell uname -r)/build
+ARCH        := x86
+C_FLAGS     := -Wall
+KMOD_DIR    := $(shell pwd)
+TARGET_PATH := /lib/modules/$(shell uname -r)/kernel/drivers/char
 
+OBJECTS := blockdev.o
 
-# Add your debugging flag (or not) to CFLAGS
-ifeq ($(DEBUG),y)
-  DEBFLAGS = -O -g -DSBULL_DEBUG # "-O" is needed to expand inlines
-else
-  DEBFLAGS = -O2
-endif
+ccflags-y += $(C_FLAGS)
 
-EXTRA_CFLAGS += $(DEBFLAGS)
-EXTRA_CFLAGS += -I..
+obj-m += $(BINARY).o
 
-ifneq ($(KERNELRELEASE),)
-# call from kernel build system
+$(BINARY)-y := $(OBJECTS)
 
-#obj-m	:= robs_sbull.o
-#obj-m	:= sbull.o
-obj-m	:= sbd.o
+$(BINARY).ko:
+	make -C $(KERNEL) M=$(KMOD_DIR) modules
 
-else
-
-KERNELDIR ?= /lib/modules/$(shell uname -r)/build
-PWD       := $(shell pwd)
-
-default:
-	$(MAKE) -C $(KERNELDIR) M=$(PWD) modules
-
-endif
-
-
+install:
+	cp $(BINARY).ko $(TARGET_PATH)
+	depmod -a
 
 clean:
-	rm -rf *.o *~ core .depend .*.cmd *.ko *.mod.c .tmp_versions
-
-depend .depend dep:
-	$(CC) $(EXTRA_CFLAGS) -M *.c > .depend
-
-
-ifeq (.depend,$(wildcard .depend))
-include .depend
-endif
+	rm -f *.ko
+	rm -f *.o
