@@ -11,7 +11,7 @@ function make_minors {
 
 
 # FIXME: This isn't handling minors (partitions) at all.
-module="sbull"
+module="updated_sbull"
 device="sbull"
 mode="664"
 chardevice="sbullr"

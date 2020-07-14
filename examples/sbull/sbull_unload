@@ -1,5 +1,5 @@
 #!/bin/sh
-module="sbull"
+module="updated_sbull"
 device="sbull"
 
 # invoke rmmod with all arguments we got

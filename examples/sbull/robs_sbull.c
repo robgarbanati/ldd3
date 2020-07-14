@@ -18,8 +18,8 @@
 #include <linux/buffer_head.h>	/* invalidate_bdev */
 #include <linux/bio.h>
 
-MODULE_LICENSE("Dual BSD/GPL");
-MODULE_LICENSE("Rob Garbanati");
+MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Rob Garbanati");
 
 //====================================================================================================//
 //======================================== DEFINES AND TYPEDEFS ======================================// 
@@ -44,11 +44,36 @@ MODULE_LICENSE("Rob Garbanati");
 #define INVALIDATE_DELAY        30*HZ
 #define SBULL_MINORS            16
 
+#define MINOR_SHIFT	4
+#define DEVNUM(kdevnum)	(MINOR(kdev_t_to_nr(kdevnum)) >> MINOR_SHIFT
+
+/*
+ * The different "request modes" we can use.
+ */
+enum {
+	RM_SIMPLE  = 0,	/* The extra-simple request function */
+	RM_FULL    = 1,	/* The full-blown version */
+	RM_NOQUEUE = 2,	/* Use make_request */
+};
+
+// Create a struct to represent our device
+struct sbull_dev {
+    int size;                   // Device size in number of sectors.
+    u8 *data;                   // Pointer to the actual data array.
+    short users;                 // Keep track of how many users are using this device? TODO explain better.
+    short media_change;         // Flag a media change?
+    spinlock_t lock;           // For locking TODO what?
+    struct request_queue *queue;// The device request queue.
+    struct gendisk *gd;         // The gendisk structure.
+    /*struct timer_list timer;    // For simulated media changes.*/
+};
 
 
 //====================================================================================================//
 //========================================== LOCAL VARIABLES =========================================// 
 //====================================================================================================//
+static int request_mode = RM_SIMPLE;
+
 static int sbull_major = 0;
 module_param(sbull_major, int, 0);
 static int hardsect_size = 512; // matches default linux sector size.
@@ -58,17 +83,7 @@ module_param(nsectors, int, 0);
 static int ndevices = 4; // TODO why 4 devices?
 module_param(ndevices, int, 0);
 
-// Create a struct to represent our device
-struct sbull_dev {
-    int size;                   // Device size in number of sectors.
-    u8 *data;                   // Pointer to the actual data array.
-    short user;                 // Keep track of how many users are using this device? TODO explain better.
-    short media_change;         // Flag a media change?
-    spinlock_t slock;           // For locking TODO what?
-    struct request_queue *queue;// The device request queue.
-    struct gendisk *gd;         // The gendisk structure.
-    struct timer_list timer;    // For simulated media changes.
-};
+static struct sbull_dev *Devices = NULL;
 
 //====================================================================================================//
 //========================================= PRIVATE FUNCTIONS ========================================// 
@@ -93,24 +108,163 @@ error:
 // Simply call sbull_transfer on all requests in the queue, one at a time, in a serial, blocking manner.
 static void sbull_request(struct request_queue *rq) {
     struct request *req;
-    int retval;
+    u8 *data;
+    int direction;
 
     // For each request in the queue...
-    while( (req = elv_next_request(rq)) != NULL) {
+    while( (req = blk_fetch_request(rq)) != NULL) {
+
+        struct sbull_dev *sd = req->rq_disk->private_data;
 
         // Ignore requests we choose not to support.
-        struct sbull_dev *sd = req->rq_disk->private_data;
-        if(req->cmd_type != REQ_TYPE_FS) {
-            printk(KERN_NOTICE "Skip non-fs request\n");
-            __blk_end_request_cur(req, -EIO);
-            continue;
-        }
+/*
+ *        // cmd_type is obsolete TODO find another way to do this?
+ *        if(req->cmd_type != REQ_TYPE_FS) {
+ *            printk(KERN_NOTICE "Skip non-fs request\n");
+ *            __blk_end_request_cur(req, -EIO);
+ *            continue;
+ *        }
+ */
 
         // Call sbull_transfer, getting all necessary information from the request.
-        sbull_transfer(dev, blk_rq_pos(req), blk_rq_cur_sectors(req), req->buffer, rq_data_dir(req));
+        /*sbull_transfer(sd, blk_rq_pos(req), blk_rq_cur_sectors(req), req->buffer, rq_data_dir(req));*/
+
+        direction = rq_data_dir(req);
+
+        if (direction == WRITE) {
+            printk("Writing data to the block device\n");
+        } else {
+            printk("Reading data from the block devicen\n");
+        }
+
+        data = bio_data(req->bio); /* Data buffer to perform I/O operations */
+
+        sbull_transfer(sd, blk_rq_pos(req), blk_rq_cur_sectors(req), data, direction);
+        
         __blk_end_request_cur(req, 0);
     }
 }
+
+/*
+ * Open and close.
+ */
+
+static int sbull_open(struct block_device *bdev, fmode_t mode)
+{
+	struct sbull_dev *dev = bdev->bd_disk->private_data;
+
+	/*del_timer_sync(&dev->timer);*/
+	//filp->private_data = dev;
+	spin_lock(&dev->lock);
+	if (! dev->users) 
+		check_disk_change(bdev);
+	dev->users++;
+	spin_unlock(&dev->lock);
+	return 0;
+}
+
+static void sbull_release(struct gendisk *disk, fmode_t mode)
+{
+	struct sbull_dev *dev = disk->private_data;
+
+	spin_lock(&dev->lock);
+	dev->users--;
+
+        /*
+	 *if (!dev->users) {
+	 *        dev->timer.expires = jiffies + INVALIDATE_DELAY;
+	 *        add_timer(&dev->timer);
+	 *}
+         */
+	spin_unlock(&dev->lock);
+}
+
+/*
+ * Look for a (simulated) media change.
+ */
+int sbull_media_changed(struct gendisk *gd)
+{
+	struct sbull_dev *dev = gd->private_data;
+	
+	return dev->media_change;
+}
+
+/*
+ * Revalidate.  WE DO NOT TAKE THE LOCK HERE, for fear of deadlocking
+ * with open.  That needs to be reevaluated.
+ */
+int sbull_revalidate(struct gendisk *gd)
+{
+	struct sbull_dev *dev = gd->private_data;
+	
+	if (dev->media_change) {
+		dev->media_change = 0;
+		memset (dev->data, 0, dev->size);
+	}
+	return 0;
+}
+
+/*
+ * The "invalidate" function runs out of the device timer; it sets
+ * a flag to simulate the removal of the media.
+ */
+/*
+ *void sbull_invalidate(unsigned long ldev)
+ *{
+ *        struct sbull_dev *dev = (struct sbull_dev *) ldev;
+ *
+ *        spin_lock(&dev->lock);
+ *        if (dev->users || !dev->data) 
+ *                printk (KERN_WARNING "sbull: timer sanity check failed\n");
+ *        else
+ *                dev->media_change = 1;
+ *        spin_unlock(&dev->lock);
+ *}
+ */
+
+/*
+ * The ioctl() implementation
+ */
+
+int sbull_ioctl (struct block_device *bdev, fmode_t mode,
+                 unsigned int cmd, unsigned long arg)
+{
+	long size;
+	struct hd_geometry geo;
+	struct sbull_dev *dev = bdev->bd_disk->private_data;
+
+	switch(cmd) {
+	    case HDIO_GETGEO:
+        	/*
+		 * Get geometry: since we are a virtual device, we have to make
+		 * up something plausible.  So we claim 16 sectors, four heads,
+		 * and calculate the corresponding number of cylinders.  We set the
+		 * start of data at sector four.
+		 */
+		size = dev->size*(hardsect_size/KERNEL_SECTOR_SIZE);
+		geo.cylinders = (size & ~0x3f) >> 6;
+		geo.heads = 4;
+		geo.sectors = 16;
+		geo.start = 4;
+		if (copy_to_user((void __user *) arg, &geo, sizeof(geo)))
+			return -EFAULT;
+		return 0;
+	}
+
+	return -ENOTTY; /* unknown command */
+}
+
+/*
+ * The device operations structure.
+ */
+static struct block_device_operations sbull_ops = {
+	.owner           = THIS_MODULE,
+	.open 	         = sbull_open,
+	.release 	 = sbull_release,
+	.media_changed   = sbull_media_changed,
+	.revalidate_disk = sbull_revalidate,
+	.ioctl	         = sbull_ioctl
+};
 
 // Set up our internal device. TODO describe better.
 // Allocate memory for data pointer of our device.
@@ -118,6 +272,7 @@ static void sbull_request(struct request_queue *rq) {
 // Implement request queue.
 // Create gendisk structure.
 static void setup_device(struct sbull_dev *dev, int device_index) {
+    int retval;
 
     // Get some memory.
     memset(dev, 0, sizeof (struct sbull_dev));
@@ -128,9 +283,11 @@ static void setup_device(struct sbull_dev *dev, int device_index) {
     spin_lock_init(&dev->lock);
 
     // Create the timer which "invalidates" the device.
-    init_timer(&dev->timer);
-    dev->timer.data = (unsigned long) dev;
-    dev->timer.function = sbull_invalidate;
+    /*
+     *init_timer(&dev->timer);
+     *dev->timer.data = (unsigned long) dev;
+     *dev->timer.function = sbull_invalidate;
+     */
 
     // Implement the I/O queue in various ways.
     switch(request_mode) {
@@ -154,7 +311,7 @@ static void setup_device(struct sbull_dev *dev, int device_index) {
             printk(KERN_NOTICE "Bad request mode %d, using RM_SIMPLE\n", request_mode);
 
         case RM_SIMPLE:
-            dev->queue = blk_init_queue(sbull_request, dev->lock);
+            dev->queue = blk_init_queue(sbull_request, &dev->lock);
             CHECK(dev->queue != NULL, out_vfree, 0, "blk_init_queue failed in case RM_SIMPLE in setup_device.");
             break;
     }
@@ -179,12 +336,11 @@ static void setup_device(struct sbull_dev *dev, int device_index) {
 out_vfree:
     if(dev->data) {
         vfree(dev->data);
+    }
 
 error:
     return;
 }
-
-static struct sbull_dev *Devices = NULL;
 
 static int __init sbull_init(void) {
     int i;
@@ -217,7 +373,7 @@ static void sbull_exit(void) {
     for(i=0; i<ndevices; i++) {
         struct sbull_dev *dev = Devices + i;
 
-        del_timer_sync(&dev->timer);
+        /*del_timer_sync(&dev->timer);*/
 
         // Is there a gendisk?
         if(dev->gd) {

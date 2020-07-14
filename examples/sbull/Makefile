@@ -17,7 +17,9 @@ ifneq ($(KERNELRELEASE),)
 
 #obj-m	:= robs_sbull.o
 #obj-m	:= sbull.o
-obj-m	:= sbd.o
+obj-m	:= updated_sbull.o
+#obj-m	:= sbd.o
+#obj-m	:= rob_sq_blockdev.o
 
 else
 

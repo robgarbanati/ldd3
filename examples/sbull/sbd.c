@@ -76,11 +76,14 @@ static void sbd_request(struct request_queue *q) {
 		// blk_fs_request() was removed in 2.6.36 - many thanks to
 		// Christian Paro for the heads up and fix...
 		//if (!blk_fs_request(req)) {
-		if (req == NULL || (req->cmd_type != REQ_TYPE_FS)) {
-			printk (KERN_NOTICE "Skip non-CMD request\n");
-			__blk_end_request_all(req, -EIO);
-			continue;
-		}
+                // cmd_type was removed as well at some point. TODO find another way to do this.
+                /*
+		 *if (req == NULL || (req->cmd_type != REQ_TYPE_FS)) {
+		 *        printk (KERN_NOTICE "Skip non-CMD request\n");
+		 *        __blk_end_request_all(req, -EIO);
+		 *        continue;
+		 *}
+                 */
 		sbd_transfer(&Device, blk_rq_pos(req), blk_rq_cur_sectors(req),
 				req->buffer, rq_data_dir(req));
 		if ( ! __blk_end_request_cur(req, 0) ) {

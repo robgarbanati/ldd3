@@ -1,7 +1,7 @@
 #!/bin/sh
 
-#dir=/usr/src/linux-headers-5.4.0-39
-dir=~/linux-source/linux-5.4.40
+#dir=~/linux-source/linux-5.4.40
+dir=~/personal/linux-source/linux-4.14.187
 
 find    $dir                                          \
         -path "$dir/arch*"               -prune -o    \
