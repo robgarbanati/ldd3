@@ -374,7 +374,7 @@ static int __init sbull_init(void)
 	int i;
 
         /* Get registered. */
-	sbull_major = register_blkdev(sbull_major, "sbull");
+	sbull_major = register_blkdev(sbull_major, "updated_sbull");
 	if (sbull_major <= 0) {
 		printk(KERN_WARNING "sbull: unable to get major number\n");
 		return -EBUSY;
@@ -415,7 +415,7 @@ static void sbull_exit(void)
 		if (dev->data)
 			vfree(dev->data);
 	}
-	unregister_blkdev(sbull_major, "sbull");
+	unregister_blkdev(sbull_major, "updated_sbull");
 	kfree(Devices);
 }
 	

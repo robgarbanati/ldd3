@@ -1,6 +1,6 @@
 #!/bin/sh
 module="updated_sbull"
-device="sbull"
+device="updated_sbull"
 
 # invoke rmmod with all arguments we got
 rmmod $module $* || exit 1
